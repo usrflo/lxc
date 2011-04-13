@@ -226,4 +226,11 @@ extern void lxc_delete_tty(struct lxc_tty_info *tty_info);
  */
 
 extern int lxc_setup(const char *name, struct lxc_conf *lxc_conf);
+
+/*
+ * Return the path where LXC store containers configurations files
+ * (and rootfs when not specified)
+ */
+const char* lxc_path();
+
 #endif

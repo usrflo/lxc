@@ -1748,3 +1748,8 @@ int lxc_setup(const char *name, struct lxc_conf *lxc_conf)
 
 	return 0;
 }
+
+const char* lxc_path()
+{
+	return LXCPATH;
+}
