@@ -161,6 +161,22 @@ extern int lxc_checkpoint(const char *name, int sfd, int flags);
  */
 extern int lxc_restart(const char *, int, struct lxc_conf *, int);
 
+/**
+ * @brief Browse containers
+ *
+ * Browse all registered containers.
+ *
+ * @param [in] cb A function pointer to a callback which takes a pointer to an
+ * user context and a pointer to lxcst structure. If not null, the callback
+ * will be called with the ctx as well as the container name.
+ * @param [in] ctx A pointer to an user defined variable which will be used as
+ * an argument to the callback. If the callback returns non zero
+ * lxcst_browse_containers stops and return with -1 with errno set to EINTR.
+ *
+ * @return the number of containers on success, -1 on error with errno set.
+ */
+int lxc_browse(int (*cb)(void *ctx, const char *name), void *ctx);
+
 /*
  * Returns the version number of the library
  */

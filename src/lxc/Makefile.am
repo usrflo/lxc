@@ -49,7 +49,8 @@ liblxc_so_SOURCES = \
 	mainloop.c mainloop.h \
 	af_unix.c af_unix.h \
 	\
-	utmp.c utmp.h
+	utmp.c utmp.h \
+	lxc_browse.c
 
 AM_CFLAGS=-I$(top_srcdir)/src
 
