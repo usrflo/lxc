@@ -1,0 +1,15 @@
+lxc (0.7.4.1-dotcloud2) unstable; urgency=low
+
+  * Hack for old dotcloud lxc compatbility.
+
+ -- François-Xavier Bourlet <fx@dotcloud.com>  Fri, 20 May 2011 11:32:09 -0700
+
+lxc (0.7.4.1-dotcloud1) unstable; urgency=low
+
+  * Initial lxc package
+  * This package conflit with the package lxc.
+  * This is a specific dotcloud version of lxc.
+  * setns syscall detection improved.
+  * setns syscall detection now customizable.
+
+ -- François-Xavier Bourlet <fx@dotcloud.com>  Fri, 13 May 2011 12:36:03 -0700
