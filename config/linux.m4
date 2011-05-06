@@ -1,5 +1,9 @@
 AC_DEFUN([AC_LINUX],
 [
+	if test -z "$LINUX_KERNEL_RELEASE" ; then
+		LINUX_KERNEL_RELEASE=`uname -r`
+	fi
+	
 	AC_LINUX_DIR()
 	AC_LINUX_SRCARCH()
 ])
