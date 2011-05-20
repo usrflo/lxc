@@ -57,6 +57,7 @@
 lxc_log_define(lxc_commands, lxc);
 
 #define abstractname LXCPATH "/%s/command"
+#define abstractname_old_dotcloud "//var/lib/lxc/%s/command"
 
 static int receive_answer(int sock, struct lxc_answer *answer)
 {
@@ -79,6 +80,13 @@ static int __lxc_command(const char *name, struct lxc_command *command,
 	sprintf(offset, abstractname, name);
 
 	sock = lxc_af_unix_connect(path);
+	
+	if (sock < 0 && errno == ECONNREFUSED) {
+		// try the old abstract socket.
+		sprintf(offset, abstractname_old_dotcloud, name);
+		sock = lxc_af_unix_connect(path);
+	}
+
 	if (sock < 0 && errno == ECONNREFUSED) {
 		*stopped = 1;
 		return -1;
@@ -271,8 +279,13 @@ extern int lxc_command_mainloop_add(const char *name,
 
 	fd = lxc_af_unix_open(path, SOCK_STREAM, 0);
 	if (fd < 0) {
-		ERROR("failed to create the command service point");
-		return -1;
+		// try the old abstract socket.
+		sprintf(offset, abstractname_old_dotcloud, name);
+		fd = lxc_af_unix_open(path, SOCK_STREAM, 0);
+		if (fd < 0) {
+			ERROR("failed to create the command service point");
+			return -1;
+		}
 	}
 
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC)) {
