@@ -21,7 +21,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-#include "../config.h"
+#include "config.h"
+
 #include <stdio.h>
 #undef _GNU_SOURCE
 #include <string.h>
@@ -32,7 +33,6 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <termios.h>
-#include <namespace.h>
 #include <sys/param.h>
 #include <sys/file.h>
 #include <sys/mount.h>
@@ -125,6 +125,7 @@ int signalfd(int fd, const sigset_t *mask, int flags)
 #include "commands.h"
 #include "console.h"
 #include "sync.h"
+#include "namespace.h"
 
 lxc_log_define(lxc_start, lxc);
 
@@ -141,7 +142,6 @@ int lxc_check_inherited(int fd_to_ignore)
 	struct dirent dirent, *direntp;
 	int fd, fddir;
 	DIR *dir;
-	int ret = 0;
 
 	dir = opendir("/proc/self/fd");
 	if (!dir) {
@@ -152,9 +152,6 @@ int lxc_check_inherited(int fd_to_ignore)
 	fddir = dirfd(dir);
 
 	while (!readdir_r(dir, &dirent, &direntp)) {
-		char procpath[64];
-		char path[PATH_MAX];
-
 		if (!direntp)
 			break;
 
@@ -171,22 +168,12 @@ int lxc_check_inherited(int fd_to_ignore)
 
 		if (match_fd(fd))
 			continue;
-		/*
-		 * found inherited fd
-		 */
-		ret = -1;
 
-		snprintf(procpath, sizeof(procpath), "/proc/self/fd/%d", fd);
-
-		if (readlink(procpath, path, sizeof(path)) == -1)
-			ERROR("readlink(%s) failed : %m", procpath);
-		else
-			ERROR("inherited fd %d on %s", fd, path);
+		WARN("inherited fd %d", fd);
 	}
 
-	if (closedir(dir))
-		ERROR("failed to close directory");
-	return ret;
+	closedir(dir); /* cannot fail */
+	return 0;
 }
 
 static int setup_signal_fd(sigset_t *oldmask)
@@ -482,6 +469,16 @@ int lxc_spawn(struct lxc_handler *handler)
 	if (!lxc_list_empty(&handler->conf->network)) {
 
 		clone_flags |= CLONE_NEWNET;
+
+		/* Find gateway addresses from the link device, which is
+		 * no longer accessible inside the container. Do this
+		 * before creating network interfaces, since goto
+		 * out_delete_net does not work before lxc_clone. */
+		if (lxc_find_gateway_addresses(handler)) {
+			ERROR("failed to find gateway addresses");
+			lxc_sync_fini(handler);
+			return -1;
+		}
 
 		/* that should be done before the clone because we will
 		 * fill the netdev index and use them in the child

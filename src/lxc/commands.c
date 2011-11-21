@@ -131,10 +131,8 @@ pid_t get_init_pid(const char *name)
 	int ret, stopped = 0;
 
 	ret = lxc_command(name, &command, &stopped);
-	if (ret < 0 && stopped) {
-		ERROR("'%s' is not running", name);
+	if (ret < 0 && stopped)
 		return -1;
-	}
 
 	if (ret < 0) {
 		ERROR("failed to send command");
@@ -234,6 +232,11 @@ static int incoming_command_handler(int fd, void *data,
 	if (connection < 0) {
 		SYSERROR("failed to accept connection");
 		return -1;
+	}
+
+	if (fcntl(connection, F_SETFD, FD_CLOEXEC)) {
+		SYSERROR("failed to set close-on-exec on incoming connection");
+		goto out_close;
 	}
 
 	if (setsockopt(connection, SOL_SOCKET,

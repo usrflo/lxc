@@ -80,6 +80,14 @@ lxc_log_define(lxc_conf, lxc);
 #define MNT_DETACH 2
 #endif
 
+#ifndef MS_RELATIME
+#define MS_RELATIME (1 << 21)
+#endif
+
+#ifndef MS_STRICTATIME
+#define MS_STRICTATIME (1 << 24)
+#endif
+
 #ifndef CAP_SETFCAP
 #define CAP_SETFCAP 31
 #endif
@@ -126,28 +134,32 @@ static  instanciate_cb netdev_conf[LXC_NET_MAXCONFTYPE + 1] = {
 };
 
 static struct mount_opt mount_opt[] = {
-	{ "defaults",   0, 0              },
-	{ "ro",         0, MS_RDONLY      },
-	{ "rw",         1, MS_RDONLY      },
-	{ "suid",       1, MS_NOSUID      },
-	{ "nosuid",     0, MS_NOSUID      },
-	{ "dev",        1, MS_NODEV       },
-	{ "nodev",      0, MS_NODEV       },
-	{ "exec",       1, MS_NOEXEC      },
-	{ "noexec",     0, MS_NOEXEC      },
-	{ "sync",       0, MS_SYNCHRONOUS },
-	{ "async",      1, MS_SYNCHRONOUS },
-	{ "dirsync",    0, MS_DIRSYNC     },
-	{ "remount",    0, MS_REMOUNT     },
-	{ "mand",       0, MS_MANDLOCK    },
-	{ "nomand",     1, MS_MANDLOCK    },
-	{ "atime",      1, MS_NOATIME     },
-	{ "noatime",    0, MS_NOATIME     },
-	{ "diratime",   1, MS_NODIRATIME  },
-	{ "nodiratime", 0, MS_NODIRATIME  },
-	{ "bind",       0, MS_BIND        },
-	{ "rbind",      0, MS_BIND|MS_REC },
-	{ NULL,         0, 0              },
+	{ "defaults",      0, 0              },
+	{ "ro",            0, MS_RDONLY      },
+	{ "rw",            1, MS_RDONLY      },
+	{ "suid",          1, MS_NOSUID      },
+	{ "nosuid",        0, MS_NOSUID      },
+	{ "dev",           1, MS_NODEV       },
+	{ "nodev",         0, MS_NODEV       },
+	{ "exec",          1, MS_NOEXEC      },
+	{ "noexec",        0, MS_NOEXEC      },
+	{ "sync",          0, MS_SYNCHRONOUS },
+	{ "async",         1, MS_SYNCHRONOUS },
+	{ "dirsync",       0, MS_DIRSYNC     },
+	{ "remount",       0, MS_REMOUNT     },
+	{ "mand",          0, MS_MANDLOCK    },
+	{ "nomand",        1, MS_MANDLOCK    },
+	{ "atime",         1, MS_NOATIME     },
+	{ "noatime",       0, MS_NOATIME     },
+	{ "diratime",      1, MS_NODIRATIME  },
+	{ "nodiratime",    0, MS_NODIRATIME  },
+	{ "bind",          0, MS_BIND        },
+	{ "rbind",         0, MS_BIND|MS_REC },
+	{ "relatime",      0, MS_RELATIME    },
+	{ "norelatime",    1, MS_RELATIME    },
+	{ "strictatime",   0, MS_STRICTATIME },
+	{ "nostrictatime", 1, MS_STRICTATIME },
+	{ NULL,            0, 0              },
 };
 
 static struct caps_opt caps_opt[] = {
@@ -740,6 +752,8 @@ int setup_pivot_root(const struct lxc_rootfs *rootfs)
 
 static int setup_pts(int pts)
 {
+	char target[PATH_MAX];
+
 	if (!pts)
 		return 0;
 
@@ -760,6 +774,9 @@ static int setup_pts(int pts)
 		SYSERROR("failed to symlink '/dev/pts/ptmx'->'/dev/ptmx'");
 		return -1;
 	}
+
+	if (realpath("/dev/ptmx", target) && !strcmp(target, "/dev/pts/ptmx"))
+		goto out;
 
 	/* fallback here, /dev/pts/ptmx exists just mount bind */
 	if (mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0)) {
@@ -1304,6 +1321,61 @@ static int setup_netdev(struct lxc_netdev *netdev)
 		}
 	}
 
+	/* We can only set up the default routes after bringing
+	 * up the interface, sine bringing up the interface adds
+	 * the link-local routes and we can't add a default
+	 * route if the gateway is not reachable. */
+
+	/* setup ipv4 gateway on the interface */
+	if (netdev->ipv4_gateway) {
+		if (!(netdev->flags & IFF_UP)) {
+			ERROR("Cannot add ipv4 gateway for %s when not bringing up the interface", ifname);
+			return -1;
+		}
+
+		if (lxc_list_empty(&netdev->ipv4)) {
+			ERROR("Cannot add ipv4 gateway for %s when not assigning an address", ifname);
+			return -1;
+		}
+
+		err = lxc_ipv4_gateway_add(netdev->ifindex, netdev->ipv4_gateway);
+		if (err) {
+			ERROR("failed to setup ipv4 gateway for '%s': %s",
+				      ifname, strerror(-err));
+			if (netdev->ipv4_gateway_auto) {
+				char buf[INET_ADDRSTRLEN];
+				inet_ntop(AF_INET, netdev->ipv4_gateway, buf, sizeof(buf));
+				ERROR("tried to set autodetected ipv4 gateway '%s'", buf);
+			}
+			return -1;
+		}
+	}
+
+	/* setup ipv6 gateway on the interface */
+	if (netdev->ipv6_gateway) {
+		if (!(netdev->flags & IFF_UP)) {
+			ERROR("Cannot add ipv6 gateway for %s when not bringing up the interface", ifname);
+			return -1;
+		}
+
+		if (lxc_list_empty(&netdev->ipv6) && !IN6_IS_ADDR_LINKLOCAL(netdev->ipv6_gateway)) {
+			ERROR("Cannot add ipv6 gateway for %s when not assigning an address", ifname);
+			return -1;
+		}
+
+		err = lxc_ipv6_gateway_add(netdev->ifindex, netdev->ipv6_gateway);
+		if (err) {
+			ERROR("failed to setup ipv6 gateway for '%s': %s",
+				      ifname, strerror(-err));
+			if (netdev->ipv6_gateway_auto) {
+				char buf[INET6_ADDRSTRLEN];
+				inet_ntop(AF_INET, netdev->ipv6_gateway, buf, sizeof(buf));
+				ERROR("tried to set autodetected ipv6 gateway '%s'", buf);
+			}
+			return -1;
+		}
+	}
+
 	DEBUG("'%s' has been setup", current_ifname);
 
 	return 0;
@@ -1616,7 +1688,55 @@ int lxc_assign_network(struct lxc_list *network, pid_t pid)
 			return -1;
 		}
 
-		DEBUG("move '%s' to '%d'", netdev->link, pid);
+		DEBUG("move '%s' to '%d'", netdev->name, pid);
+	}
+
+	return 0;
+}
+
+int lxc_find_gateway_addresses(struct lxc_handler *handler)
+{
+	struct lxc_list *network = &handler->conf->network;
+	struct lxc_list *iterator;
+	struct lxc_netdev *netdev;
+	int link_index;
+
+	lxc_list_for_each(iterator, network) {
+		netdev = iterator->elem;
+
+		if (!netdev->ipv4_gateway_auto && !netdev->ipv6_gateway_auto)
+			continue;
+
+		if (netdev->type != LXC_NET_VETH && netdev->type != LXC_NET_MACVLAN) {
+			ERROR("gateway = auto only supported for "
+			      "veth and macvlan");
+			return -1;
+		}
+
+		if (!netdev->link) {
+			ERROR("gateway = auto needs a link interface");
+			return -1;
+		}
+
+		link_index = if_nametoindex(netdev->link);
+		if (!link_index)
+			return -EINVAL;
+
+		if (netdev->ipv4_gateway_auto) {
+			if (lxc_ipv4_addr_get(link_index, &netdev->ipv4_gateway)) {
+				ERROR("failed to automatically find ipv4 gateway "
+				      "address from link interface '%s'", netdev->link);
+				return -1;
+			}
+		}
+
+		if (netdev->ipv6_gateway_auto) {
+			if (lxc_ipv6_addr_get(link_index, &netdev->ipv6_gateway)) {
+				ERROR("failed to automatically find ipv6 gateway "
+				      "address from link interface '%s'", netdev->link);
+				return -1;
+			}
+		}
 	}
 
 	return 0;
