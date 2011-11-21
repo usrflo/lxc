@@ -35,10 +35,23 @@
 #include "namespace.h"
 #include "caps.h"
 #include "log.h"
+#include "conf.h"
+#include "confile.h"
 
 lxc_log_define(lxc_attach_ui, lxc);
 
+static struct lxc_list defines;
+
+static int my_parser(struct lxc_arguments* args, int c, char* arg)
+{
+	switch (c) {
+	case 'f': args->rcfile = arg; break;
+	}
+	return 0;
+}
+
 static const struct option my_longopts[] = {
+	{"rcfile", required_argument, 0, 'f'},
 	LXC_COMMON_OPTIONS
 };
 
@@ -50,9 +63,10 @@ static struct lxc_arguments my_args = {
 Execute the specified command - enter the container NAME\n\
 \n\
 Options :\n\
-  -n, --name=NAME   NAME for name of the container\n",
+  -n, --name=NAME   NAME for name of the container\n\
+  -f, --rcfile=FILE Load configuration file FILE\n",
 	.options  = my_longopts,
-	.parser   = NULL,
+	.parser   = my_parser,
 	.checker  = NULL,
 };
 
@@ -63,6 +77,10 @@ int main(int argc, char *argv[], char *envp[])
 	struct passwd *passwd;
 	uid_t uid;
 	char *curdir;
+	char *rcfile;
+	struct lxc_conf *conf;
+
+	lxc_list_init(&defines);
 
 	ret = lxc_caps_init();
 	if (ret)
@@ -77,6 +95,38 @@ int main(int argc, char *argv[], char *envp[])
 	if (ret)
 		return ret;
 
+	/* rcfile is specified in the cli option */
+	if (my_args.rcfile)
+		rcfile = (char *)my_args.rcfile;
+	else {
+		int rc;
+
+		rc = asprintf(&rcfile, LXCPATH "/%s/config", my_args.name);
+		if (rc == -1) {
+			SYSERROR("failed to allocate memory");
+			return -1;
+		}
+
+		/* container configuration does not exist */
+		if (access(rcfile, F_OK)) {
+			free(rcfile);
+			rcfile = NULL;
+		}
+	}
+
+	conf = lxc_conf_init();
+	if (!conf) {
+		ERROR("failed to initialize configuration");
+		return -1;
+	}
+
+	if (rcfile && lxc_config_read(rcfile, conf)) {
+		ERROR("failed to read configuration file");
+		return -1;
+	}
+
+	if (lxc_config_define_load(&defines, conf))
+		return -1;
 	pid = get_init_pid(my_args.name);
 	if (pid < 0) {
 		ERROR("failed to get the init pid");
@@ -95,6 +145,11 @@ int main(int argc, char *argv[], char *envp[])
 		WARN("could not change directory to '%s'", curdir);
 
 	free(curdir);
+
+	if (setup_caps(&conf->caps)) {
+		ERROR("failed to drop capabilities");
+		return -1;
+	}
 
 	pid = fork();
 

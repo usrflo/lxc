@@ -1113,7 +1113,7 @@ static int setup_mount_entries(const struct lxc_rootfs *rootfs, struct lxc_list 
 	return ret;
 }
 
-static int setup_caps(struct lxc_list *caps)
+int setup_caps(struct lxc_list *caps)
 {
 	struct lxc_list *iterator;
 	char *drop_entry;
