@@ -49,6 +49,7 @@
 #endif
 
 extern pid_t lxc_clone(int (*fn)(void *), void *arg, int flags);
-extern int lxc_attach(pid_t pid);
+extern int lxc_attach(pid_t pid, const char* cgname);
+extern int lxc_cgroup_append_task(const char *name, pid_t pid);
 
 #endif
