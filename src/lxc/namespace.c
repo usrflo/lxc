@@ -82,11 +82,12 @@ pid_t lxc_clone(int (*fn)(void *), void *arg, int flags)
 	return ret;
 }
 
-int lxc_attach(pid_t pid)
+int lxc_attach(pid_t pid, const char* cgname)
 {
 	char path[MAXPATHLEN];
 	char *ns[] = { "pid", "mnt", "net", "ipc", "uts" };
 	const int size = sizeof(ns) / sizeof(char *);
+    pid_t cpid = getpid();
 	int fd[size];
 	int i;
 
@@ -104,6 +105,12 @@ int lxc_attach(pid_t pid)
 			return -1;
 		}
 	}
+
+    /* Let's add the pid to the 'tasks' file */
+    if (lxc_cgroup_append_task(cgname, cpid)) {
+        SYSERROR("failed to attach pid '%d' to '%s'", cpid, cgname);
+        return -1;
+    }
 
 	for (i = 0; i < size; i++) {
 		if (setns(fd[i], 0)) {
