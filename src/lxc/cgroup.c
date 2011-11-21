@@ -265,6 +265,43 @@ out:
 	return err;
 }
 
+/*
+ * for each mounted cgroup, get the cgroup for the container to append a task
+ */
+int lxc_cgroup_append_task(const char *name, pid_t pid)
+{
+       struct mntent *mntent;
+       FILE *file = NULL;
+       int err = -1;
+       char cgname[MAXPATHLEN];
+
+       file = setmntent(MTAB, "r");
+       if (!file) {
+               SYSERROR("failed to open %s", MTAB);
+               return -1;
+       }
+
+       while ((mntent = getmntent(file))) {
+
+               DEBUG("checking '%s' (%s)", mntent->mnt_dir, mntent->mnt_type);
+
+               if (!strcmp(mntent->mnt_type, "cgroup")) {
+
+                       INFO("found cgroup mounted at '%s'", mntent->mnt_dir);
+                       snprintf(cgname, MAXPATHLEN, "%s/%s", mntent->mnt_dir, name);
+                       /* Let's add the pid to the 'tasks' file */
+                       err = cgroup_attach(cgname, pid);
+                       if (err) {
+                               SYSERROR("failed to attach pid '%d' to '%s'", pid, cgname);
+                               endmntent(file);
+                               return err;
+                       }
+               }
+       }
+       endmntent(file);
+       return err;
+}
+
 
 int lxc_one_cgroup_destroy(const char *cgmnt, const char *name)
 {
