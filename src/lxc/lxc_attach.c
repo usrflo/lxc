@@ -85,7 +85,7 @@ int main(int argc, char *argv[], char *envp[])
 
 	curdir = get_current_dir_name();
 
-	ret = lxc_attach(pid);
+	ret = lxc_attach(pid, my_args.name);
 	if (ret < 0) {
 		ERROR("failed to enter the namespace");
 		return -1;
