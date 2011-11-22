@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/capability.h>
 #define _GNU_SOURCE
 #include <getopt.h>
 
@@ -109,8 +110,11 @@ int main(int argc, char *argv[])
 		sigaction(i, &act, NULL);
 	}
 
-	if (lxc_setup_fs())
-		exit(err);
+	if (lxc_caps_isset(CAP_SYS_ADMIN) == 1)
+	{
+		if (lxc_setup_fs())
+			exit(err);
+	}
 
 	if (lxc_caps_reset())
 		exit(err);

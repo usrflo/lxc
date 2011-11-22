@@ -167,3 +167,28 @@ int lxc_caps_init(void)
 
 	return 0;
 }
+
+int lxc_caps_isset(int capno)
+{
+	int ret;
+	cap_t caps;
+	cap_flag_value_t flag;
+
+	caps = cap_get_pid(getpid());
+	if (caps == NULL)
+	{
+		ERROR("failed to cap_get_pid: %m");
+		return -1;
+	}
+
+	ret = cap_get_flag(caps, capno, CAP_EFFECTIVE, &flag);
+	if (ret)
+	{
+		ERROR("failed to cap_get_flag: %m");
+		cap_free(caps);
+		return -1;
+	}
+
+	cap_free(caps);
+	return flag == CAP_SET;
+}
