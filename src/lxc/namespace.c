@@ -49,7 +49,7 @@ int setns(int fd, int nstype)
 	errno = ENOSYS;
 	return -1;
 #else
-	return syscall(__NR_setns, fd, nstype);
+	return syscall(__NR_setns, nstype, fd);
 #endif
 }
 
