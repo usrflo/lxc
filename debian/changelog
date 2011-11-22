@@ -1,4 +1,4 @@
-lxc (0.7.5-dotcloud) unstable; urgency=low
+lxc (0.7.5-dotcloud1) unstable; urgency=low
 
   * stay compatible with linux kernel < 3.0
   * lxc-init: only setup_fs if SYS_CAP_ADMIN is not set
