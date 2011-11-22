@@ -1,3 +1,16 @@
+lxc (0.7.5-dotcloud) unstable; urgency=low
+
+  * stay compatible with linux kernel < 3.0
+  * lxc-init: only setup_fs if SYS_CAP_ADMIN is not set
+  * drop caps in lxc_attach
+  * imported patch patch_attach_cgroup_5of5_lxc_attach.c.patch
+  * imported patch patch_attach_cgroup_4of5_cgroup.c.patch
+  * imported patch patch_attach_cgroup_3of5_cgroup.c.patch
+  * imported patch patch_attach_cgroup_2of5_namespace.h.patch
+  * imported patch patch_attach_cgroup_1of5_namespace.c.patch
+
+ -- Sebastien Pahl <seb@dotcloud.com>  Mon, 21 Nov 2011 16:15:09 -0700
+
 lxc (0.7.4.1-dotcloud2) unstable; urgency=low
 
   * Hack for old dotcloud lxc compatbility.
